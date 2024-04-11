@@ -217,7 +217,20 @@ tasks.named('compileTestJava', JavaCompile) {
     options.fork = true
 }
 
+sourceSets {
+    module
+}
+
+dependencies {
+    testImplementation sourceSets.module.output
+}
+
 tasks.named('test', Test) {
+    testClassesDirs += files(
+        sourceSets.test.output,
+        sourceSets.module.output
+    )
+
     def newClasspath = objects.fileCollection()
     newClasspath.from(configurations.testRuntimeClasspath)
     newClasspath.from(sourceSets.test.output)
