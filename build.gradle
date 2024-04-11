@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'maven-publish'
     id 'dev.lukebemish.managedversioning' version '1.2.13'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 group = 'dev.lukebemish'
@@ -107,13 +108,59 @@ repositories {
 
 configurations {
     emojiData
+    compileClasspath.extendsFrom shade
 }
 
 dependencies {
     emojiData 'org.unicode.emoji:emoji-sequences:15.1@txt'
-    implementation 'org.ow2.asm:asm:9.7'
+    shade 'org.ow2.asm:asm:9.7'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('shadowJar') {
+    enabled = false
+}
+
+components.java.withVariantsFromConfiguration(configurations.shadowRuntimeElements) {
+    skip()
+}
+
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
+tasks.register('extractManifest', Copy) {
+    dependsOn tasks.jar
+    from zipTree(tasks.jar.archiveFile)
+    include 'META-INF/MANIFEST.MF'
+    into project.layout.buildDirectory.dir('extracted-manifest')
+}
+
+tasks.register('fullJar',  ShadowJar) {
+    dependsOn tasks.jar
+    dependsOn tasks.extractManifest
+    archiveClassifier.set('')
+    from zipTree(tasks.jar.archiveFile)
+    configurations = [project.configurations.shade]
+    relocate 'org.objectweb.asm', 'dev.lukebemish.emojiidentifiers.shadow.asm'
+    exclude 'module-info.class'
+    manifest.from(project.layout.buildDirectory.file('extracted-manifest/META-INF/MANIFEST.MF'))
+}
+
+tasks.named('assemble') {
+    dependsOn tasks.named('fullJar')
+}
+
+configurations.apiElements.artifacts.clear()
+configurations.runtimeElements.artifacts.clear()
+
+artifacts {
+    runtimeElements(tasks.fullJar.archiveFile) {
+        builtBy(tasks.fullJar)
+    }
+
+    apiElements(tasks.fullJar.archiveFile) {
+        builtBy(tasks.fullJar)
+    }
 }
 
 tasks.register('generateEmojiList') {
@@ -154,20 +201,24 @@ tasks.register('generateEmojiList') {
 }
 
 tasks.named('compileTestJava', JavaCompile) {
-    dependsOn tasks.named('jar')
-    inputs.file(tasks.jar.archiveFile)
+    dependsOn tasks.named('fullJar')
+    inputs.file(tasks.fullJar.archiveFile)
     CommandLineArgumentProvider lateArgs = {
-        ["-javaagent:${tasks.jar.archiveFile.get().asFile.absolutePath}" as String]
+        ["-javaagent:${tasks.fullJar.archiveFile.get().asFile.absolutePath}" as String]
     }
     options.forkOptions.jvmArgumentProviders.add lateArgs
     options.fork = true
 }
 
 tasks.named('test', Test) {
-    dependsOn tasks.named('jar')
-    inputs.file(tasks.jar.archiveFile)
+    def newClasspath = objects.fileCollection()
+    newClasspath.from(configurations.testRuntimeClasspath)
+    newClasspath.from(sourceSets.test.output)
+    classpath = newClasspath
+    dependsOn tasks.named('fullJar')
+    inputs.file(tasks.fullJar.archiveFile)
     CommandLineArgumentProvider lateArgs = {
-        ["-javaagent:${tasks.jar.archiveFile.get().asFile.absolutePath}" as String]
+        ["-javaagent:${tasks.fullJar.archiveFile.get().asFile.absolutePath}" as String]
     }
     jvmArgumentProviders.add lateArgs
 
@@ -175,6 +226,7 @@ tasks.named('test', Test) {
 }
 
 tasks.named('jar', Jar) {
+    archiveClassifier.set('partial')
     dependsOn tasks.named('generateEmojiList')
     from tasks.named('generateEmojiList').get().outputs.files
     manifest {
