@@ -1,2 +1,15 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven {
+            url "https://maven.lukebemish.dev/releases/"
+        }
+    }
+}
+
+plugins {
+    id 'dev.lukebemish.conventions' version '0.1.8'
+}
+
 rootProject.name = 'emojiidentifiers'
 

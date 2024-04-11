@@ -1,14 +1,88 @@
 plugins {
     id 'java'
+    id 'maven-publish'
+    id 'dev.lukebemish.managedversioning' version '1.2.13'
 }
 
 group = 'dev.lukebemish'
-version = '0.1.0'
+
+managedVersioning {
+    versionFile.set rootProject.file('version.properties')
+    versionPRs()
+    versionSnapshots()
+
+    gitHubActions {
+        snapshot {
+            prettyName.set 'Snapshot'
+            workflowDispatch.set(true)
+            onBranches.add 'main'
+            gradleJob {
+                buildCache()
+                name.set 'build'
+                gradlew 'Build', 'build'
+                gradlew 'Publish', 'publish'
+                mavenSnapshot('github')
+            }
+        }
+        release {
+            prettyName.set 'Release'
+            workflowDispatch.set(true)
+            gradleJob {
+                buildCache()
+                name.set 'build'
+                step {
+                    setupGitUser()
+                }
+                readOnly.set false
+                gradlew 'Tag Release', 'tagRelease'
+                gradlew 'Build', 'build'
+                step {
+                    run.set 'git push && git push --tags'
+                }
+                recordVersion 'Record Version', 'version'
+            }
+            gradleJob {
+                buildCache()
+                name.set 'publish'
+                needs.add('build')
+                tag.set('${{needs.build.outputs.version}}')
+                gradlew 'Publish', 'publish'
+                mavenCentral()
+                sign()
+            }
+        }
+        build_pr {
+            prettyName.set 'Build PR'
+            pullRequest.set(true)
+            gradleJob {
+                name.set 'build'
+                gradlew 'Build', 'build'
+                gradlew 'Publish', 'publish'
+                pullRequestArtifact()
+            }
+        }
+        publish_pr {
+            prettyName.set 'Publish PR'
+            publishPullRequestAction(
+                'github',
+                "${project.group.replace('.', '/')}/${project.name}",
+                'Build PR'
+            )
+        }
+    }
+}
+
+managedVersioning.apply()
+
+println "Building: $version"
+
+managedVersioning.publishing.mavenPullRequest(publishing)
+managedVersioning.publishing.mavenSnapshot(publishing)
+managedVersioning.publishing.mavenRelease(publishing)
 
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(17))
     withSourcesJar()
-    withJavadocJar()
 }
 
 repositories {
@@ -110,5 +184,13 @@ tasks.named('jar', Jar) {
                 'Can-Redefine-Classes': 'true',
                 'Can-Retransform-Classes': 'true'
         )
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
     }
 }
