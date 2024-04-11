@@ -1,0 +1,114 @@
+plugins {
+    id 'java'
+}
+
+group = 'dev.lukebemish'
+version = '0.1.0'
+
+java {
+    toolchain.languageVersion.set(JavaLanguageVersion.of(17))
+    withSourcesJar()
+    withJavadocJar()
+}
+
+repositories {
+    mavenCentral()
+    def unicode = ivy {
+        url = "https://www.unicode.org/Public/emoji/"
+        patternLayout {
+            artifact "[revision]/[module].[ext]"
+        }
+        metadataSources {
+            artifact()
+        }
+        content {
+            includeGroup("org.unicode.emoji")
+        }
+    }
+    exclusiveContent {
+        forRepositories(unicode).filter {
+            includeGroup("org.unicode.emoji")
+        }
+    }
+}
+
+configurations {
+    emojiData
+}
+
+dependencies {
+    emojiData 'org.unicode.emoji:emoji-sequences:15.1@txt'
+    implementation 'org.ow2.asm:asm:9.7'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.7.1'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.register('generateEmojiList') {
+    dependsOn configurations.emojiData
+    def files = objects.fileCollection()
+    files.from(configurations.emojiData)
+    inputs.files(files)
+
+    def output = project.layout.buildDirectory.file('generates-emojis/emoji-list.txt')
+    outputs.file(output)
+    doLast {
+        String text = ""
+        for (File file : files) {
+            text += file.text + "\n"
+        }
+        def codepoints = new LinkedHashSet<Integer>()
+        for (String line : text.lines()) {
+            if (line.blank || line.trim().startsWith('#')) {
+                continue
+            }
+            String prefix = line.split(/;/)[0].trim()
+            String[] parts = prefix.split(/\s+/)
+            for (String part : parts) {
+                String[] range = part.split(/\.\./)
+                if (range.length == 2) {
+                    int start = Integer.parseInt(range[0], 16)
+                    int end = Integer.parseInt(range[1], 16)
+                    for (int i = start; i <= end; i++) {
+                        codepoints.add(Integer.toHexString(i))
+                    }
+                    continue
+                }
+                codepoints.add(part)
+            }
+        }
+        output.get().asFile.write(codepoints.join('\n'))
+    }
+}
+
+tasks.named('compileTestJava', JavaCompile) {
+    dependsOn tasks.named('jar')
+    inputs.file(tasks.jar.archiveFile)
+    CommandLineArgumentProvider lateArgs = {
+        ["-javaagent:${tasks.jar.archiveFile.get().asFile.absolutePath}" as String]
+    }
+    options.forkOptions.jvmArgumentProviders.add lateArgs
+    options.fork = true
+}
+
+tasks.named('test', Test) {
+    dependsOn tasks.named('jar')
+    inputs.file(tasks.jar.archiveFile)
+    CommandLineArgumentProvider lateArgs = {
+        ["-javaagent:${tasks.jar.archiveFile.get().asFile.absolutePath}" as String]
+    }
+    jvmArgumentProviders.add lateArgs
+
+    useJUnitPlatform()
+}
+
+tasks.named('jar', Jar) {
+    dependsOn tasks.named('generateEmojiList')
+    from tasks.named('generateEmojiList').get().outputs.files
+    manifest {
+        attributes (
+                'Premain-Class': 'dev.lukebemish.emojiidentifiers.Agent',
+                'Can-Redefine-Classes': 'true',
+                'Can-Retransform-Classes': 'true'
+        )
+    }
+}
