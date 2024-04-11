@@ -201,6 +201,13 @@ tasks.register('generateEmojiList') {
 }
 
 tasks.named('compileTestJava', JavaCompile) {
+    doFirst {
+        def dest = destinationDirectory.asFile.get()
+        if (dest.exists()) {
+            dest.deleteDir()
+        }
+        dest.mkdirs()
+    }
     dependsOn tasks.named('fullJar')
     inputs.file(tasks.fullJar.archiveFile)
     CommandLineArgumentProvider lateArgs = {
