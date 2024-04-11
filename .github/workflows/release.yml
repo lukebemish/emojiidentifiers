@@ -123,10 +123,9 @@
                         "BUILD_CACHE_PASSWORD": "${{ secrets.BUILD_CACHE_PASSWORD }}",
                         "BUILD_CACHE_USER": "${{ secrets.BUILD_CACHE_USER }}",
                         "BUILD_CACHE_URL": "${{ secrets.BUILD_CACHE_URL }}",
-                        "SONATYPE_PASSWORD": "${{ secrets.SONATYPE_PASSWORD }}",
-                        "SONATYPE_USER": "${{ secrets.SONATYPE_USER }}",
-                        "GPG_KEY": "${{ secrets.GPG_KEY }}",
-                        "GPG_PASSWORD": "${{ secrets.GPG_PASSWORD }}"
+                        "RELEASE_MAVEN_PASSWORD": "${{ secrets.RELEASE_MAVEN_PASSWORD }}",
+                        "RELEASE_MAVEN_USER": "github",
+                        "RELEASE_MAVEN_URL": "https://maven.lukebemish.dev/releases/"
                     }
                 }
             ]

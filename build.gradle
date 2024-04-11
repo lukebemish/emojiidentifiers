@@ -47,8 +47,7 @@ managedVersioning {
                 needs.add('build')
                 tag.set('${{needs.build.outputs.version}}')
                 gradlew 'Publish', 'publish'
-                mavenCentral()
-                sign()
+                mavenRelease('github')
             }
         }
         build_pr {
