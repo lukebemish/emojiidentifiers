@@ -29,7 +29,7 @@ public final class CharacterTransformer implements ClassFileTransformer {
         return transformCharacterClass(classfileBuffer);
     }
 
-    private byte[] transformCharacterClass(byte[] original) {
+    private static byte[] transformCharacterClass(byte[] original) {
         ClassWriter writer = new ClassWriter(0);
         ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9, writer) {
             @Override
@@ -138,7 +138,7 @@ public final class CharacterTransformer implements ClassFileTransformer {
         );
     }
 
-    public ConstantDynamic booleanConstant(boolean bool) {
+    private static ConstantDynamic booleanConstant(boolean bool) {
         return new ConstantDynamic(
                 // booleans are fucky in ConstantDynamics. Here's an alternative...
                 bool ? "TRUE" : "FALSE",
